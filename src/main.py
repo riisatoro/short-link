@@ -39,6 +39,20 @@ async def get_dashboard(request: Request):
     return templates.TemplateResponse("/dashboard/dashboard.html", {"request": request, "user": user, "urls": urls})
 
 
+@app.get("/{url_key}")
+async def redirect_to_full_url(request: Request, url_key: str):
+    short_url = os.path.join(DOMAIN, url_key)
+    url = await database.select("urls", ["full_url", "visits", "single_use", "count_visits"], f"short_url = '{short_url}'", single=True)
+    if url[3]:
+        await database.update("urls", ["visits"], [url[1] + 1], f"short_url = '{url_key}'")
+        return RedirectResponse(url[0], status_code=HTTP_302_FOUND)
+    elif url[2]:
+        await database.delete("urls", f"short_url = '{short_url}'")
+        return RedirectResponse(url[0], status_code=HTTP_302_FOUND)
+    else:
+        return RedirectResponse("/", status_code=HTTP_302_FOUND)
+
+
 @app.get("/signup")
 async def get_signup(request: Request):
     return templates.TemplateResponse("/auth/signup.html", {"request": request})
