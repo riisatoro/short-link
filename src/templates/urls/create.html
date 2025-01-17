@@ -4,10 +4,18 @@
 
 <h1>Create a new URL</h1>
 <div>
-    <form action="/urls" method="post">
+    <form action="/urls/new" method="post">
         <div>
             <label for="url">URL:</label>
             <input type="text" id="url" name="url" required>
+        </div>
+        <div>
+            <label for="single_use">Single use:</label>
+            <input type="checkbox" id="single_use" name="single_use">
+        </div>
+        <div>
+            <label for="count_usage">Count usage:</label>
+            <input type="checkbox" id="count_usage" name="count_usage">
         </div>
         <div>
             <button type="submit">Create</button>
