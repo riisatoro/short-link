@@ -1,11 +1,12 @@
 import os
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.status import HTTP_302_FOUND
 
 from database import database
+from dependencies import get_request_user
 from security import (
     create_jwt_token,
     decode_jwt_token,
@@ -24,18 +25,15 @@ templates = Jinja2Templates(directory="templates")
 
 
 @app.get("/")
-async def get_dashboard(request: Request):
-    token = request.cookies.get("token")
-    if not token:
-        return RedirectResponse("/signin", status_code=HTTP_302_FOUND)
-
-    try:
-        token = decode_jwt_token(token)
-    except:
-        return RedirectResponse("/signin", status_code=HTTP_302_FOUND)
-    
-    user = await database.select("users", ["username"], f"id = {token['user_id']}", single=True)
-    urls = await database.select("urls", ["id", "full_url", "short_url", "count_visits", "visits"], f"user_id = {token['user_id']}")
+async def get_dashboard(
+    request: Request,
+    user = Depends(get_request_user),
+):
+    urls = await database.select(
+        "urls", 
+        ["id", "full_url", "short_url", "count_visits", "visits"], 
+        f"user_id = {user[0]}"
+    )
     return templates.TemplateResponse("/dashboard/dashboard.html", {"request": request, "user": user, "urls": urls})
 
 
@@ -109,17 +107,12 @@ async def post_signout(request: Request):
 
 
 @app.get("/urls/new")
-async def get_new_url(request: Request):
+async def get_new_url(request: Request, user = Depends(get_request_user)):
     return templates.TemplateResponse("/urls/create.html", {"request": request})
 
 
 @app.post("/urls/new")
-async def post_new_url(request: Request):
-    try:
-        token = decode_jwt_token(request.cookies.get("token"))
-    except:
-        return RedirectResponse("/signin", status_code=HTTP_302_FOUND)
-
+async def post_new_url(request: Request, user = Depends(get_request_user)):
     form = await request.form()
     url = form.get("url")
     single_use = form.get("single_use")
@@ -129,7 +122,17 @@ async def post_new_url(request: Request):
     await database.insert(
         "urls",
         ["user_id", "full_url", "short_url", "single_use", "count_visits"],
-        [token["user_id"], url, short_url, single_use, count_visits]
+        [user[0], url, short_url, single_use, count_visits]
     )
 
+    return RedirectResponse("/", status_code=HTTP_302_FOUND)
+
+
+@app.post("/urls/{url_id}/delete")
+async def get_delete_url(request: Request, url_id: int, user = Depends(get_request_user)):
+    url_to_delete = await database.select("urls", ["id", "full_url"], f"id = {url_id}", single=True)
+    if not url_to_delete:
+        return RedirectResponse("/", status_code=HTTP_302_FOUND)
+    
+    await database.delete("urls", f"id = {url_id}")
     return RedirectResponse("/", status_code=HTTP_302_FOUND)
